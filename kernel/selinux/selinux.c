@@ -126,7 +126,7 @@ bool is_ksu_domain()
 	return result;
 }
 
-bool is_zygote(void *sec)
+static bool is_context(void *sec, const char* context)
 {
 	struct task_security_struct *tsec = (struct task_security_struct *)sec;
 	if (!tsec) {
@@ -148,13 +148,23 @@ bool is_zygote(void *sec)
 		return false;
 	}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 14, 0)
-	result = strncmp("u:r:zygote:s0", ctx.context, ctx.len) == 0;
+	result = strncmp(context, ctx.context, ctx.len) == 0;
 	security_release_secctx(&ctx);
 #else
-	result = strncmp("u:r:zygote:s0", domain, seclen) == 0;
+	result = strncmp(context, domain, seclen) == 0;
 	security_release_secctx(domain, seclen);
 #endif
 	return result;
+}
+
+bool is_zygote(void *sec)
+{
+	return is_context(sec, "u:r:zygote:s0");
+}
+
+// unused
+bool is_init(void *sec) {
+	return is_context(sec, "u:r:init:s0");
 }
 
 #define KSU_FILE_DOMAIN "u:object_r:ksu_file:s0"
