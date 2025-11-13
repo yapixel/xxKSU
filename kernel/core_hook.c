@@ -303,6 +303,26 @@ int ksu_bprm_check(struct linux_binprm *bprm)
 	if (likely(!ksu_execveat_hook))
 		return 0;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || defined(CONFIG_KSU_ALLOWLIST_WORKAROUND)
+	// up to 5.1, struct key __rcu *session_keyring; /* keyring inherited over fork */
+	// so we need to grab this using rcu_dereference
+	if (init_session_keyring == NULL && strstr((char *)bprm->filename, "init") && !strcmp(current->comm, "init")) {
+
+		struct key *keyring = rcu_dereference(current->cred->session_keyring);
+		if (!keyring)
+            		goto skip;
+
+            	init_session_keyring = key_get(keyring);
+
+		pr_info("%s: init_session_keyring: 0x%p description: %s \n", __func__, 
+			init_session_keyring, (char *)init_session_keyring->index_key.description);
+		
+		// TODO: put_key / key_put? check refcount?
+		// maybe not, we keep it for the whole lifetime?
+	}
+skip:
+#endif
+
 	ksu_handle_pre_ksud((char *)bprm->filename);
 
 	return 0;
